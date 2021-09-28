@@ -1,2 +1,12 @@
 # Thinkpad-P14s-CustomKernel
 Custom Linux minimal kernel for Lenovo Thinkpad P14s (AMD)
+
+This is a custom minimal kernel specially compiled for the Lenovo Thinkpad P14s AMD (Type 20Y1) ONLY. 
+
+DOES NOT RUN ON INTEL-based P14s - the Intel kernel modules have been removed
+
+Initial baseline of modules were determined using modprobed-db (AUR) https://wiki.archlinux.org/title/Modprobed-db 
+Look into the modprobed-db file here for the modules included in this kernel
+
+I have included the config file here for reference
+
