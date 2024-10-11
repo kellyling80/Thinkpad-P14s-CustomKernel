@@ -1,0 +1,179 @@
+Arch Linux - Building Own Kernel
+================================
+
+
+Building / Compiling Your Own Kernel on Arch Linux (June 2023)
+
+Pre-requisites
+
+<https://wiki.archlinux.org/title/Modprobed-db>
+
+ 1. Install modprobe-db (<https://aur.archlinux.org/packages/modprobed-db>)
+
+\- git clone <https://aur.archlinux.org/modprobed-db.git>
+
+\- cd modprobed-db
+
+\- makepkg -sri
+
+# Modprobed-db
+
+-   [Page](https://wiki.archlinux.org/title/Modprobed-db)
+-   [Discussion](https://wiki.archlinux.org/title/Talk:Modprobed-db)
+
+-   [Read](https://wiki.archlinux.org/title/Modprobed-db)
+-   [View source](https://wiki.archlinux.org/index.php?title=Modprobed-db&action=edit)
+-   [View history](https://wiki.archlinux.org/index.php?title=Modprobed-db&action=history)
+
+Related articles
+
+-   [Kernels](https://wiki.archlinux.org/title/Kernels)
+-   [Linux-ck](https://wiki.archlinux.org/title/Linux-ck)
+
+[modprobed-db](https://github.com/graysky2/modprobed-db) is a utility that populates a list of all the [kernel modules](https://wiki.archlinux.org/title/Kernel_module) that have been loaded on a system while running. This list can then be used to disable all the unused modules when [building your own kernel](https://wiki.archlinux.org/title/Kernel#Compilation) and significantly reduce the compilation time.
+
+## Installation
+
+Install the [modprobed-db](https://aur.archlinux.org/packages/modprobed-db/)^(AUR) package.
+
+1.  Run `modprobed-db` to create `$XDG_CONFIG_HOME/modprobed-db.conf` if it does not already exist.
+2.  Run `modprobed-db store` to create the `$XDG_CONFIG_HOME/modprobed.db` database file and populate it with the currently loaded modules.
+
+**Optionally:** add modules in the ignore array that you do NOT want counted, for example modules that get built or that are provided by another package. Some common ones are included by default:
+
+    $ cat ~/.config/modprobed-db.conf
+
+    IGNORE=(nvidia vboxdrv vboxnetflt vboxnetadp vboxpci lirc_dev lirc_i2c
+    osscore oss_hdaudio oss_usb tp_smapi thinkpad_ec
+    zavl znvpair zunicode zcommon zpios zfs spl splat)
+
+## Usage
+
+### Populating the database
+
+Once the initial database has been created, use `modprobed-db list` to show the current database modules and `modprobed-db store` to update the database with the currently loaded kernel modules.
+
+#### Recommendations
+
+It is recommended to "use" the official Arch kernel, with `modprobed-db` installed, for a good amount of time to allow the database to grow based on usage and capture everything the system needs before [building a kernel without the unneeded modules](https://wiki.archlinux.org/title/Modprobed-db#Building_a_kernel_with_modprobed-db)). Here are some suggested actions to allow appropriate modules to load and get cataloged:
+
+-   Mount every kind of [filesystem](https://wiki.archlinux.org/title/Filesystem) that will be used.
+-   Insert every kind of removable media that will be used (USB, DVD, CD, etc.).
+    -   This includes the mounting of ISO image files if applicable, which uses the **loop** and **isofs** modules.
+-   Use every device on the machine (network interfaces, input devices, webcams, mobile devices, etc.).
+-   Use every desired application, as some depend on kernel modules. For example:
+    -   IP blocking/filtering software such as [pgl-cli](https://aur.archlinux.org/packages/pgl-cli/)^(AUR) require the [iptables](https://wiki.archlinux.org/title/Iptables) kernel module.
+    -   Encryption software such as [truecrypt](https://aur.archlinux.org/packages/truecrypt/)^(AUR) requires cryptography kernel modules. Be sure to mount some encrypted containers so they will actually be loaded.
+    -   Certain [QEMU](https://wiki.archlinux.org/title/QEMU) configurations require kernel modules.
+    -   [lm-sensors](https://wiki.archlinux.org/title/Lm-sensors) requires kernel modules for reading hardware sensors.
+-   Try re-running modprobed-db while running different Linux-kernels; they may include modules not enabled in the other kernels.
+
+These suggested actions are to be made in parallel with periodically updating the database with `modprobed-db store` to capture any newly loaded kernel module.
+
+#### Automatic periodic database updates
+
+Calls to `modprobed-db store` can be automated with one of the following methods:
+
+##### Cron
+
+The most convenient method to use modprobed-db is to simply add a crontab entry invoking `/usr/bin/modprobed-db store` at some regular interval.
+
+Example running the script once every hour:
+
+    $ crontab -e
+    0 */1 * * *   /usr/bin/modprobed-db store &> /dev/null
+
+##### systemd
+
+Instead of cron, [enable/start](https://wiki.archlinux.org/title/Enable/start) the `modprobed-db.service` [user unit](https://wiki.archlinux.org/title/User_unit). It will run modprobed-db in store mode once per hour, and at boot and on shutdown.
+
+Like any service and timer, the [status](https://wiki.archlinux.org/title/Unit_status) of the the `modprobed-db.service` [user unit](https://wiki.archlinux.org/title/User_unit) can be queried.
+
+#### Manually editing the database
+
+Using the [\#Automatic periodic database updates](https://wiki.archlinux.org/title/Modprobed-db#Automatic_periodic_database_updates) or manually running `modprobed-db store` is not entirely foolproof:
+
+-   Some modules get loaded then unloaded between two periodic database updates and may not be captured.
+-   Some modules are used during boot and are not captured by `modprobed-db` (e.g. `efivarfs`), they need to be manually added to the `modprobed.db` file.
+
+Thankfully, the `modprobed.db` database file is a simple text file that contains one kernel module name per line: it can be manually edited to add/remove a module. It is then recommended to run `modprobed-db store` after a manual edit so the modules get automatically reordered.
+
+##### Recommended modules
+
+These modules are recommended to be added to the `$XDG_CONFIG_HOME/modprobed.db` database file as they are broadly used:
+
+-   `ext4`, `fat`, `vfat`: to support common [file systems](https://wiki.archlinux.org/title/File_systems) and the [EFI system partition](https://wiki.archlinux.org/title/EFI_system_partition)
+-   `loop`: to mount a file as a file system
+-   `isofs`: to mount ISO files
+-   `cifs`: for network filesystems like [Samba](https://wiki.archlinux.org/title/Samba)
+-   `efivarfs`: for mounting the [UEFI#UEFI variables](https://wiki.archlinux.org/title/UEFI#UEFI_variables) file system
+-   `usb_storage`: to support [USB storage devices](https://wiki.archlinux.org/title/USB_storage_devices)
+-   `usbhid`: to support USB input devices
+
+### Building a kernel with modprobed-db
+
+After the database has been adequately populated, it can be read directly by [make localmodconfig](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/README?id=refs/tags/v4.3.3#n205).
+
+#### Traditional compilation
+
+`modprobed-db` naturally intervenes in a [traditional compilation workflow](https://wiki.archlinux.org/title/Kernel/Traditional_compilation) during the configuration step with the [default Arch .config file](https://wiki.archlinux.org/title/Kernel/Traditional_compilation#Default_Arch_configuration).
+
+#### Using the official Arch kernel PKGBUILD
+
+The official Arch kernel `PKGBUILD` can be modified as shown to do this automatically:
+
+    ...
+        msg2 "Applying patch $src..."
+        patch -Np1 < "../$src"
+      done
+
+      msg2 "Setting config..."
+      cp ../config .config
+      make olddefconfig
+
+      make LSMOD=$HOME/.config/modprobed.db localmodconfig
+
+      make -s kernelrelease > ../version
+    ...
+
+#### Using linux-tkg
+
+[linux-tkg](https://github.com/Frogging-Family/linux-tkg) offers a user-friendly kernel build script that also includes extra patches oriented towards improving desktop/gaming performance. The use of `modprobed-db`'s database to strip unneeded modules can be toggled in its configuration file.
+
+## Benefits of modprobed-db with "make localmodconfig" in custom kernels
+
+1.  Significantly reduced compilation time
+2.  Unneeded modules are not built, the saved disk space is irrelevant for desktop computers as it is a relatively small gain (few hundred megabytes).
+
+Comparisons using kernel version 5.13.1, where a [Kernel/Traditional compilation](https://wiki.archlinux.org/title/Kernel/Traditional_compilation) is made with the default Arch configuration.
+
+|                        |               |              |                     |               |                        |                         |                          |
+|------------------------|---------------|--------------|---------------------|---------------|------------------------|-------------------------|--------------------------|
+| Machine CPU            | \# of threads | Compiler     | make localmodconfig | \# of Modules | Total Compilation Time | Kernel Compilation Time | Modules Compilation Time |
+| Ryzen 5950X @ 4.55 GHz | 32            | GCC 11.1.0   | No                  | 5442          | 5m 12s                 | 58s                     | 4m 14s                   |
+| Ryzen 5950X @ 4.55 GHz | 32            | GCC 11.1.0   | Yes                 | 227           | 1m 32s                 | 57s                     | 35s                      |
+| Ryzen 5950X @ 4.55 GHz | 32            | Clang 12.0.1 | No                  | 5442          | 9m 5s                  | 1m 13s                  | 7m 52s                   |
+| Ryzen 5950X @ 4.55 GHz | 32            | Clang 12.0.1 | Yes                 | 227           | 2m 13s                 | 1m 13s                  | 1m                       |
+
+**Note:** These results do not prove that GCC is faster than Clang at building the kernel. The GCC version used in these benchmarks is self built and optimized.
+
+The main results of the benchmark is that 80% of the build time of a "full" kernel is spent on modules. Given that only a fraction of those modules are needed by any given machine, the build time can be reduced by ~70%. The results will vary from one machine to another but should be similar.
+
+The number of modules can be determined by the following:
+
+    $ cd /lib/modules/15.13.1-your-custom-kernel
+    $ find * | grep ko.zst | wc -l
+
+The kernel build time is obtained with:
+
+    $ time make -jx bzImage # Replace "x" with the wanted number of threads
+
+then the modules build time is obtained with:
+
+    $ time make -jx modules # Replace "x" with the wanted number of threads
+
+## See also
+
+-   [https://docs.kernel.org/admin-guide/README.html#configuring-the-kernel](https://docs.kernel.org/admin-guide/README.html#configuring-the-kernel) for documentation for `make localmodconfig`
+-   [https://docs.kernel.org/kbuild/kconfig.html](https://docs.kernel.org/kbuild/kconfig.html) and the parent directory
+
