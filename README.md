@@ -1,5 +1,5 @@
 # Thinkpad-P14s-CustomKernel
-Custom Linux minimal kernel for Lenovo Thinkpad P14s (AMD)
+Custom Linux minimal kernel for Lenovo Thinkpad P14s (AMD) GEN-1
 
 This is a custom minimal kernel specially compiled for the **Lenovo Thinkpad P14s AMD (Type 20Y1) ONLY**. 
 
